@@ -1,6 +1,6 @@
 __author__ = 'aaron'
 
-INPUT = None
+TEXT = None
 from copy import deepcopy
 
 def uniques(parses):
@@ -15,6 +15,10 @@ def uniques(parses):
         if p not in parses2:
             parses2.append(p)
     return parses2
+
+def last_rule(tree):
+    if len(tree) == 0: return None
+    else: return tree[-1][0]
 
 def parse(input):
     '''
@@ -63,14 +67,10 @@ def parse(input):
 
 def parse_LITERAL(indx, parse_tree, literal):
     global TEXT
-    if not TEXT.startswith(literal): return None
+    if not TEXT[indx:indx+len(literal)] == literal: return None
     tree = deepcopy(parse_tree)
     tree.append(literal)
-    return [(indx + literal, tree)]
-
-def last_rule(tree):
-    if len(tree) == 0: return None
-    else: return tree[-1][0]
+    return [(indx + len(literal), tree)]
 
 def parse_NUM(indx, parse_tree):
     global TEXT
