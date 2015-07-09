@@ -2,6 +2,7 @@ __author__ = 'aaron'
 
 TEXT = None
 from copy import deepcopy
+import grammar
 
 def uniques(parses):
     '''
@@ -20,7 +21,7 @@ def last_rule(tree):
     if len(tree) == 0: return None
     else: return tree[-1][0]
 
-def parse(input):
+def parse(input_txt, input_grammar):
     '''
     Return all possible parses of the text given
     :param input: text to be parsed.
@@ -28,11 +29,15 @@ def parse(input):
              each parse represented by s-expressions in a list.
     '''
 
+    # Compile grammar.
+    global composite_rules
+    composite_rules = grammar.compile(input_grammar)
+
     # set current text to be parsed.
-    if not type(input) == str:
+    if not type(input_txt) == str:
         raise TypeError("Can only parse strings.")
     global TEXT
-    TEXT = input
+    TEXT = input_txt
 
     # you've finished parsing when every branch has been exhausted.
     def done(parses):
@@ -55,8 +60,9 @@ def parse(input):
 
             # try to extend tree by every possible rule
             # add the new trees to the next generation.
-            for rule in rules:
-                new_trees = parse_rule(i, tree, rule)
+            for rule in composite_rules:
+                if rule == "LITER": continue
+                new_trees = match_rule(i, tree, rule)
                 next_iter_parses += new_trees
 
             # next generation is now current generation.
@@ -65,14 +71,14 @@ def parse(input):
 
     return [tree for i,tree in possible_parses]
 
-def parse_LITERAL(indx, parse_tree, literal):
+def match_LITERAL(indx, parse_tree, literal):
     global TEXT
     if not TEXT[indx:indx+len(literal)] == literal: return None
     tree = deepcopy(parse_tree)
     tree.append(literal)
     return [(indx + len(literal), tree)]
 
-def parse_NUM(indx, parse_tree):
+def match_NUM(indx, parse_tree):
     global TEXT
 
     # count size of maximal string
@@ -100,7 +106,7 @@ def parse_NUM(indx, parse_tree):
 
     return parse_trees
 
-def parse_STR(indx, parse_tree):
+def match_STR(indx, parse_tree):
     global TEXT
 
     # count size of maximal string
@@ -123,13 +129,51 @@ def parse_STR(indx, parse_tree):
 
     return parse_trees
 
-def parse_rule(indx, parse_tree, rule):
+def match_COMPOSITE(indx, parse_tree, body):
+
+    trees = []
+
+    for clause in body:
+
+        # Match rule at head of body.
+        name = clause[0]
+        if name == "LITER":
+            literal = clause[1]
+            pts = match_LITERAL(indx, parse_tree, literal)
+        elif name == "NUM":
+            pts = match_NUM(indx, parse_tree)
+        elif name == "STR":
+            pts = match_STR(indx, parse_tree)
+        else:
+            raise SyntaxError("Composite rules in body of composite rules not yet implemented")
+
+        # For every possible match, match rest of the body.
+        for next_index, pt in pts:
+            pts_rest = match_COMPOSITE(next_index, pt, body[1:])
+            trees.append(pts_rest)
+
+    return trees
+
+
+
+def match_rule(indx, parse_tree, rule):
     if rule in primitive_rules:
         func = primitive_rules[rule]
         return func(indx, parse_tree)
     else:
-        raise ValueError("Composite rules not yet implemented.")
+        if rule not in composite_rules:
+            raise ValueError("Unknown rule: {}".format(rule))
+        else:
+            body = composite_rules[rule]
+            return match_COMPOSITE(indx, parse_tree, body)
 
 rules = ["NUM", "STR"]
-composite_rules = {}
-primitive_rules = { "NUM" : parse_NUM, "STR" : parse_STR }
+composite_rules = { "LITER" : () }
+primitive_rules = { "NUM" : match_NUM, "STR" : match_STR }
+
+def main():
+    gr = 'GEO := "billy" NUM'
+    print parse("billy13", gr)
+
+if __name__ == "__main__":
+    main()
